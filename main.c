@@ -1,16 +1,47 @@
-#include <ft_string.h>
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   main.c                                             :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: tkondo <tkondo@student.42tokyo.jp>         +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2025/02/06 13:59:22 by tkondo            #+#    #+#             */
+/*   Updated: 2025/02/06 14:00:04 by tkondo           ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include <errno.h>
-#include <ft_global.h>
 #include <fcntl.h>
+#include <ft_global.h>
 #include <ft_stdlib.h>
+#include <ft_string.h>
 #include <ft_unistd.h>
 #include <libft.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#ifdef DEBUG
 #define PRINT(...) fprintf(stderr, __VA_ARGS__)
 #define EXECVP(...) execvp(__VA_ARGS__)
+#else
+#define PRINT(...) (void)0
+#define EXECVP(...) ft_execvp(__VA_ARGS__)
+#endif
+
+void	close_fds(int *fds, size_t len)
+{
+	size_t	i;
+
+	if (fds == NULL)
+		return ;
+	i = 0;
+	while (i < len)
+	{
+		close(fds[i]);
+		i++;
+	}
+}
 
 void	eval(const char *s, int ifd, int ofd)
 {
@@ -19,6 +50,7 @@ void	eval(const char *s, int ifd, int ofd)
 
 	dup2(ifd, STDIN_FILENO);
 	dup2(ofd, STDOUT_FILENO);
+	close_fds((int [2]){ifd, ofd}, 2);
 	PRINT("<%d %s >%d\n", ifd, s, ofd);
 	words = ft_split(s, ' ');
 	EXECVP(*words, words);
@@ -26,22 +58,22 @@ void	eval(const char *s, int ifd, int ofd)
 	exit(1);
 }
 
-int	get_infile(const char*path)
+int	get_infile(const char *path)
 {
-	return open(path, O_RDONLY, 0777);
+	return (open(path, O_RDONLY, 0777));
 }
 
 int	get_heredoc(const char *eof)
 {
-	return -1;
+	return (-1);
 }
 
-int get_outfile(const char *path)
+int	get_outfile(const char *path)
 {
-	return open(path, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+	return (open(path, O_WRONLY | O_CREAT | O_TRUNC, 0777));
 }
 
-void	pipe_atexit()
+void	pipe_atexit(void)
 {
 	ft_delone_global("is_heredoc", NULL);
 	ft_g_mmfree();
@@ -50,18 +82,19 @@ void	pipe_atexit()
 
 void	init_pipe(int c, char **v, char **envp)
 {
-	ft_set_global("is_heredoc", (void *)(long long)(ft_strcmp("heredoc", v[0]) == 0));
+	ft_set_global("is_heredoc", (void *)(long long)(ft_strcmp("heredoc",
+				v[0]) == 0));
 	ft_initenv(envp);
 	ft_atexit(pipe_atexit);
 }
 
 void	do_pipe(char **cmds, char *cmd_last, int in, int out)
 {
-	int pipe_fd[2];
-	int ofd;
-	int ifd;
-	pid_t pid;
-	int i;
+	int		pipe_fd[2];
+	int		ofd;
+	int		ifd;
+	pid_t	pid;
+	int		i;
 
 	i = 0;
 	ifd = in;
@@ -92,26 +125,30 @@ void	do_pipe(char **cmds, char *cmd_last, int in, int out)
 	close(ifd);
 }
 
+int	wait_chproc(void)
+{
+	int	status;
+
+	while (wait(&status) != -1)
+		;
+	return (status);
+}
+
 int	main(int argc, char *argv[], char *envp[])
 {
 	int	i;
-
-	int ofd;
-	int ifd;
+	int	ofd;
+	int	ifd;
 
 	if (argc < 5)
 		ft_exit(EXIT_FAILURE);
-	init_pipe(argc+1, argv+1, envp);
+	init_pipe(argc + 1, argv + 1, envp);
 	i = 1;
-//	if(!ft_get_global("is_heredoc"))
-		ifd = get_infile(argv[i]);
-//	else
-//		ifd = get_heredoc(argv[++i]);
+	//	if(!ft_get_global("is_heredoc"))
+	ifd = get_infile(argv[i]);
+	//	else
+	//		ifd = get_heredoc(argv[++i]);
 	ofd = get_outfile(argv[argc - 1]);
 	do_pipe(argv + i + 1, argv[argc - 2], ifd, ofd);
-	while (wait(NULL) != -1)
-		;
-	if (errno != ECHILD)
-		perror(NULL);
-	ft_exit(0);
+	ft_exit(wait_chproc());
 }
